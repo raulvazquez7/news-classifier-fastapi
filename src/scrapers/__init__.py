@@ -1,0 +1,3 @@
+"""
+Hacker News scraping logic
+"""
