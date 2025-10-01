@@ -39,4 +39,4 @@ build/
 dist/
 *.egg-info/
 
-ROADMAP.md
+ROADMAP.md.cursor/
