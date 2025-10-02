@@ -6,6 +6,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api import routes
 import logging
+from dotenv import load_dotenv
+
+# CRITICAL: Load .env BEFORE anything else
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(

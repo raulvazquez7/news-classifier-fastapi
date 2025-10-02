@@ -3,10 +3,12 @@ FastAPI routes for Hacker News API
 """
 
 from fastapi import APIRouter, HTTPException, Depends
-from src.models import Story
+from src.models import Story, ClassificationResponse
 from src.cache import CacheManager
 from src.scrapers import scrape_pages
+from src.ai import classify_stories
 from src.api.dependencies import get_cache_manager
+from src.exceptions import AIClassificationError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -44,6 +46,91 @@ async def get_default_stories(
         List of 30 stories from page 1
     """
     return await get_stories(1, cache)
+
+
+@router.get("/ai/classify/{pages}", response_model=ClassificationResponse)
+async def classify_hn_stories(
+    pages: int,
+    cache: CacheManager = Depends(get_cache_manager)
+) -> ClassificationResponse:
+    """
+    Classify stories from N pages using OpenAI.
+    
+    Uses cache to avoid re-scraping. Only classifies the first 5 stories.
+    
+    Args:
+        pages: Number of pages to fetch and classify
+    
+    Returns:
+        ClassificationResponse with classified stories
+        
+    Raises:
+        HTTPException: If classification fails or pages parameter is invalid
+    """
+    # Validate input
+    if pages < 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Pages parameter must be >= 1"
+        )
+    
+    if pages > 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Pages parameter must be <= 10"
+        )
+    
+    try:
+        # First, ensure we have the stories (use existing endpoint logic)
+        logger.info(f"Fetching {pages} page(s) for classification")
+        
+        # Check which pages are missing from cache
+        missing_pages = cache.get_missing_pages(pages)
+        
+        if missing_pages:
+            logger.info(f"Scraping missing pages: {missing_pages}")
+            
+            # Scrape missing pages
+            scraped_data = await scrape_pages(missing_pages)
+            
+            # Add to cache
+            for page_num, stories in scraped_data.items():
+                if stories:
+                    cache.add_page(page_num, stories)
+                else:
+                    logger.warning(f"No stories scraped for page {page_num}")
+        else:
+            logger.info(f"All pages 1-{pages} already in cache")
+        
+        # Get all stories from cache
+        stories = cache.get_stories_up_to(pages)
+        logger.info(f"Got {len(stories)} stories, classifying first 5 with OpenAI")
+        
+        # Classify stories with OpenAI
+        classification_response = await classify_stories(stories, max_stories=5)
+        
+        logger.info(f"Successfully classified {classification_response.total} stories")
+        return classification_response
+        
+    except AIClassificationError as e:
+        logger.error(f"AI classification error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"AI classification failed: {str(e)}"
+        )
+    
+    except ValueError as e:
+        # Cache error
+        logger.error(f"Cache error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    except Exception as e:
+        # Unexpected error
+        logger.error(f"Error in classify endpoint: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to classify stories: {str(e)}"
+        )
 
 
 @router.get("/{pages}", response_model=list[Story])

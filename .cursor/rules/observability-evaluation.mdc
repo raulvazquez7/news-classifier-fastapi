@@ -1,0 +1,127 @@
+---
+description: Observability and evaluation standards for LLM applications
+globs: ["*.py"]
+alwaysApply: true
+---
+
+# Observability & Evaluation for LLM Applications
+
+## Core Principle
+**Observability is mandatory.** Every LLM interaction must be traced, logged, and evaluable.
+
+---
+
+## Framework Selection
+
+### Option 1: LangChain/LangGraph → LangSmith + LangGraph Studio
+
+**When to use:** If your project uses `langchain` or `langgraph` libraries.
+
+**Setup:**
+1. Create `studio/` folder at project root
+2. Add `studio/.gitignore`:
+   ```
+   .env
+   ```
+3. Create `studio/langgraph.json`:
+   ```json
+   {
+     "graphs": {
+       "default": "src.graph:app"
+     },
+     "dependencies": [
+       "requirements.txt"
+     ],
+     "port": 8001
+   }
+   ```
+4. Create `studio/.env` for API keys
+5. Run from project root:
+   ```bash
+   DOTENV_PATH=studio/.env langgraph dev --config studio/langgraph.json
+   ```
+
+**Benefits:**
+- Visual graph debugging in LangGraph Studio
+- Built-in LangSmith tracing
+- Replay and fork conversations
+
+---
+
+### Option 2: Google ADK / Custom Agents → Langfuse
+
+**When to use:** If NOT using LangChain/LangGraph (e.g., Google ADK, custom frameworks).
+
+**Setup:**
+```python
+from langfuse import get_client
+
+# Initialize client (reads from env: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY)
+langfuse = get_client()
+
+# Wrap every agent interaction
+with langfuse.start_as_current_span(name="chat-interaction"):
+    # Update trace with metadata
+    langfuse.update_current_trace(
+        user_id="user-123",
+        session_id="session-456",
+        input={"message": user_input},
+        tags=["agent-type", "feature"]
+    )
+    
+    # Run your agent
+    result = agent.run(user_input)
+    
+    # Update trace with output
+    langfuse.update_current_trace(output={"response": result})
+    
+    # Optional: Get trace URL for debugging
+    trace_url = langfuse.get_trace_url()
+    print(f"🔍 View trace: {trace_url}")
+
+# Flush to ensure immediate sending
+langfuse.flush()
+```
+
+**Required in .env:**
+```env
+LANGFUSE_PUBLIC_KEY=pk-lf-xxxxx
+LANGFUSE_SECRET_KEY=sk-lf-xxxxx
+LANGFUSE_HOST=https://cloud.langfuse.com
+```
+
+**Benefits:**
+- Framework-agnostic
+- Self-hosted or cloud options
+- Token/cost tracking built-in
+
+---
+
+## What to Log (Minimum)
+
+Every trace must capture:
+- **Input**: User query/message
+- **Output**: Agent final response
+- **user_id**: Identifier for the user
+- **session_id**: Identifier for the conversation session
+- **Tags**: For filtering and categorization
+- **Metadata**: Model name, tool calls, errors (captured automatically)
+
+---
+
+## Evaluation
+
+- Use the observability platform's built-in evaluation features
+- Create test datasets for regression testing
+- Track metrics: accuracy, latency, cost over time
+- Review traces for debugging and improvement
+
+---
+
+## Rule of Thumb
+
+**If you write an LLM call, you MUST add tracing around it.**
+
+No exceptions. Observability is not optional.
+alwaysApply: true
+---
