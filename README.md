@@ -383,9 +383,6 @@ curl http://localhost:3000/ai/classify/1
 | Cost per story | ~$0.0001 |
 | Cost for 5 stories | ~$0.0005 |
 
-**Monthly estimates (1000 requests/day):**
-- 5000 stories/day × $0.0001 = **$0.50/day**
-- **~$15/month**
 
 ## 🔒 Environment Variables
 
@@ -588,40 +585,6 @@ curl https://api.openai.com/v1/models \
 - Review logs for retry attempts
 - Consider reducing parallel requests (semaphore 3 → 2)
 
-## 📝 Technical Decisions Log
-
-### Why BeautifulSoup over Scrapy?
-- Lighter weight for simple scraping
-- No need for Scrapy's complexity
-- Better for single-site scraping
-
-### Why In-Memory Cache over Redis?
-- Project requirement: non-persistent cache
-- Simpler deployment (no external dependencies)
-- Sufficient for single-instance deployment
-
-### Why Responses API over Chat Completions?
-- Native structured outputs (guaranteed schema)
-- Better Pydantic integration
-- Reduced parsing code and bugs
-
-### Why Async over Sync?
-- Better performance for I/O bound operations
-- Modern Python best practice
-- FastAPI is built for async
-
-### Why Semaphore (3) for Parallelization?
-- Balance between speed and rate limits
-- Avoids overwhelming OpenAI API
-- 2.5x faster than sequential
-- Empirically tested (works reliably)
-
-### Why YAML for Prompts?
-- Separate concerns (code vs configuration)
-- Easy iteration without code changes
-- Version controlled
-- Product owners can modify
-
 ## 🚢 Deployment
 
 ### Docker Compose (Single Server)
@@ -740,39 +703,7 @@ curl -s http://localhost:3000/ai/classify/1 | \
   jq '.items[] | select(.category == "ai-ml")'
 ```
 
-## 🤝 Contributing
-
-### Local Setup
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Install dev dependencies (`pip install -r requirements.txt`)
-4. Make changes
-5. Run tests (`pytest tests/ -v`)
-6. Format code (`black .`)
-7. Commit (`git commit -m 'feat: add amazing feature'`)
-8. Push (`git push origin feature/amazing-feature`)
-9. Open Pull Request
-
-### Code Standards
-
-- **Type hints** - All functions must have type annotations
-- **Docstrings** - All public functions must be documented
-- **Tests** - New features must include tests
-- **Formatting** - Use black with line-length=100
-- **Linting** - Pass ruff checks
-
-## 📄 License
-
-This project is for educational/technical assessment purposes.
-
-## 📞 Support
-
-For questions or issues:
-- Open an issue on GitHub
-- Check `/docs` endpoint for API documentation
-- Review logs: `docker compose logs -f`
 
 ---
 
-**Built with ❤️ using FastAPI, OpenAI, and modern Python best practices.**
+**Built by Raúl Vázquez Méndez.**
