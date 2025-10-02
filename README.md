@@ -29,8 +29,8 @@ docker compose up -d
 
 # 4. Test endpoints
 curl http://localhost:3000/health
-curl http://localhost:3000/1 | python -m json.tool
-curl http://localhost:3000/ai/classify/1 | python -m json.tool
+curl http://localhost:3000/1 | python3 -m json.tool
+curl http://localhost:3000/ai/classify/1 | python3 -m json.tool
 ```
 
 ### Local Development
