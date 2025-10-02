@@ -5,15 +5,16 @@ FastAPI application entry point
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api import routes
+from src.config import settings  # ← Import settings (valida al import)
 import logging
 from dotenv import load_dotenv
 
-# CRITICAL: Load .env BEFORE anything else
+# Load .env BEFORE importing settings
 load_dotenv()
 
-# Configure logging
+# Configure logging with level from settings
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, settings.log_level.upper()),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
@@ -28,7 +29,7 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS middleware (if needed for frontend)
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # In production, specify exact origins
@@ -40,13 +41,18 @@ app.add_middleware(
 # Include routers
 app.include_router(routes.router)
 
-# Startup event
+
 @app.on_event("startup")
 async def startup_event():
+    """
+    Startup event - configuration already validated by settings import.
+    """
     logger.info("🚀 Hacker News API starting up...")
+    logger.info(f"✅ OpenAI Model: {settings.openai_model}")
+    logger.info(f"✅ API Key configured: {settings.openai_api_key[:20]}...")
     logger.info("📚 API documentation available at /docs")
 
-# Shutdown event
+
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("👋 Hacker News API shutting down...")
@@ -54,4 +60,8 @@ async def shutdown_event():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app,
+        host=settings.api_host,
+        port=settings.api_port
+    )

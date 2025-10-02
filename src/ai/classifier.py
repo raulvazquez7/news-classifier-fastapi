@@ -18,35 +18,22 @@ import asyncio
 import time
 import logging
 from typing import Optional
+from src.config import settings  # ← Añadir import
 
 logger = logging.getLogger(__name__)
 
 
 def get_openai_config() -> tuple[AsyncOpenAI, str]:
     """
-    Get configured OpenAI async client and model name from environment.
+    Get configured OpenAI async client and model name.
+    
+    Uses settings loaded and validated at startup.
     
     Returns:
         Tuple of (AsyncOpenAI client, model name)
-        
-    Raises:
-        AIClassificationError: If API key or model is not configured
     """
-    api_key = os.getenv("OPENAI_API_KEY")
-    model = os.getenv("OPENAI_MODEL")
-    
-    if not api_key:
-        raise AIClassificationError(
-            "OPENAI_API_KEY not found in environment variables"
-        )
-    
-    if not model:
-        raise AIClassificationError(
-            "OPENAI_MODEL not found in environment variables"
-        )
-    
-    logger.info(f"Using OpenAI model: {model}")
-    return AsyncOpenAI(api_key=api_key), model
+    # Settings already validated at app startup
+    return AsyncOpenAI(api_key=settings.openai_api_key), settings.openai_model
 
 
 @retry(
@@ -89,7 +76,7 @@ async def classify_single_story(
     try:
         # Prepare input
         story_input = StoryInput.from_story(story, index)
-        system_prompt, user_prompt = get_classification_prompt(story_input)
+        system_prompt, user_prompt = get_classification_prompt(story_input)  # ← Unpacking
         
         logger.info(f"Classifying story {index}: {story.title[:50]}...")
         
@@ -98,8 +85,8 @@ async def classify_single_story(
             client.responses.parse(
                 model=model,
                 input=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "system", "content": system_prompt},  
+                    {"role": "user", "content": user_prompt}       
                 ],
                 text_format=StoryClassification,
                 temperature=0.3
