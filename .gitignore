@@ -39,4 +39,6 @@ build/
 dist/
 *.egg-info/
 
-ROADMAP.md.cursor/
+ROADMAP.md
+.cursor/
+test-openai.py
