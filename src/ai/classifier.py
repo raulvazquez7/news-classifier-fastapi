@@ -5,6 +5,7 @@ OpenAI integration for story classification using Responses API
 from openai import AsyncOpenAI
 from src.models import Story, StoryInput, StoryClassification, ClassifiedStory, ClassificationResponse
 from src.ai.prompts import get_classification_prompt
+from src.ai.pricing import calculate_cost
 from src.exceptions import AIClassificationError, AIRateLimitError, AITimeoutError
 from tenacity import (
     retry,
@@ -64,6 +65,7 @@ async def classify_single_story(
     Classify a single story using OpenAI Responses API.
     
     Includes retry logic for rate limits and timeouts.
+    Logs latency and cost metrics.
     
     Args:
         story: Story object to classify
@@ -108,14 +110,27 @@ async def classify_single_story(
         # Get parsed output - already a StoryClassification object!
         classification = response.output_parsed
         
-        # Calculate elapsed time
+        # Calculate metrics
         elapsed = time.time() - start_time
+        usage = response.usage
         
+        # Calculate cost with real token usage
+        cost = calculate_cost(
+            prompt_tokens=usage.input_tokens,
+            completion_tokens=usage.output_tokens,
+            cached_tokens=usage.input_tokens_details.cached_tokens,
+            model=model
+        )
+        
+        # Log detailed metrics (for developers)
         logger.info(
             f"✅ Story {index} classified | "
             f"Category: {classification.category} | "
             f"Confidence: {classification.confidence}% | "
-            f"Latency: {elapsed:.2f}s"
+            f"Latency: {elapsed:.2f}s | "
+            f"Tokens: {usage.total_tokens} "
+            f"(in:{usage.input_tokens}, out:{usage.output_tokens}, cached:{usage.input_tokens_details.cached_tokens}) | "
+            f"Cost: ${cost:.6f}"
         )
         
         return classification
@@ -220,7 +235,7 @@ async def classify_stories(
         f"✅ Classification complete | "
         f"Success: {len(classified_stories)}/{len(stories_to_classify)} | "
         f"Total time: {total_elapsed:.2f}s | "
-        f"Avg per story: {total_elapsed/len(classified_stories):.2f}s"
+        f"Avg per story: {total_elapsed/len(classified_stories) if classified_stories else 0:.2f}s"
     )
     
     return response
