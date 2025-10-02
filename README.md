@@ -1,55 +1,93 @@
-# Hacker News API Test (with AI)
+# Hacker News API with AI Classification
 
-## Goal
+A production-ready asynchronous API that scrapes Hacker News and classifies content using OpenAI's latest Responses API with structured outputs.
 
-Develop an API that scrapes the Hacker News website (https://news.ycombinator.com/) and integrates OpenAI for intelligent content classification (do not use the official Hacker News API).
+## 🎯 Overview
 
-## API Endpoints
+This API provides intelligent access to Hacker News content with:
+- **Web scraping** of HN HTML (not using the official API)
+- **Incremental caching** for performance optimization
+- **AI-powered classification** using OpenAI Responses API
+- **Fully asynchronous** design for high concurrency
+- **Docker deployment** ready for production
 
-The API will have the following endpoints:
+## 🚀 Quick Start
 
-- **`/`** → Behaves the same as `/1`
-- **`/{number}`** → Retrieves the specified number of pages from Hacker News
-  - Example: `/1` → 30 stories, `/2` → 60 stories (pages 1+2), `/3` → 90 stories, and so on
-- **`/ai/classify/{pages}`** → Fetches stories from the `{pages}` result and classifies them with OpenAI
+### With Docker (Recommended)
 
-## Behavior
+```bash
+# 1. Clone the repository
+git clone <repo-url>
+cd <repo-name>
 
-- The API must be **fully asynchronous** 
-- Development should follow a **test-driven approach** to ensure correctness
-- Once core functionality is implemented, add an **in-memory caching mechanism**:
-  - If `/1` is fetched and then `/2`, only page 2 is retrieved
-  - If `/2` is fetched and then `/4`, only pages 3 and 4 are retrieved
-- Cache must not persist after restart
-- The application must be **dockerized** and runnable with **Docker Compose**
+# 2. Configure environment variables
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
 
-## Key Requirements
+# 3. Run with Docker Compose
+docker compose up -d
 
-- **Scraping:** You must scrape the Hacker News **HTML** (https://news.ycombinator.com/) - not the official API
-- **Cache:** Ensure that cache is **non-persistent** across app restarts
-- **Git:** Maintain all code in a Git repository with meaningful, structured commits
-- **Clarity:** Use clear and descriptive naming. Add comments if something might be hard to understand later
-- **README:** Provide instructions in the project's `README.md` on how to run the API and the tests
+# 4. Test endpoints
+curl http://localhost:3000/health
+curl http://localhost:3000/1 | python -m json.tool
+curl http://localhost:3000/ai/classify/1 | python -m json.tool
+```
 
-## Expected Output
+### Local Development
 
-### `/1`
+```bash
+# 1. Create virtual environment
+python3.12 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
+# 2. Install dependencies
+pip install -r requirements.txt
+pip install -e .
+
+# 3. Configure environment
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
+
+# 4. Run the API
+uvicorn src.main:app --reload
+
+# 5. Access at http://localhost:8000
+```
+
+## 📡 API Endpoints
+
+### `GET /` or `GET /1`
+Retrieve 30 stories from page 1 of Hacker News.
+
+**Response:**
 ```json
 [
   {
-    "title": "The title of the first news article",
-    "url": "https://some-url.com/for/this/article",
-    "points": 90,
-    "sent_by": "pepito",
+    "title": "Example Story Title",
+    "url": "https://example.com/article",
+    "points": 150,
+    "sent_by": "username",
     "published": "2 hours ago",
-    "comments": 24
+    "comments": 42
   }
 ]
 ```
 
-### `/ai/classify/1`
+### `GET /{number}`
+Retrieve stories from N pages (30 stories per page).
 
+**Examples:**
+- `/2` → 60 stories (pages 1-2)
+- `/3` → 90 stories (pages 1-3)
+
+**Features:**
+- Incremental caching (only scrapes missing pages)
+- Maximum 10 pages (300 stories)
+
+### `GET /ai/classify/{pages}`
+Classify stories using OpenAI with structured outputs.
+
+**Response:**
 ```json
 {
   "model": "gpt-4o-mini",
@@ -57,67 +95,65 @@ The API will have the following endpoints:
   "schema_version": "1",
   "items": [
     {
-      "title": "Show HN: Vectorless RAG",
-      "url": "https://github.com/...",
-      "points": 103,
-      "sent_by": "page_index",
+      "title": "Show HN: My Project",
+      "url": "https://github.com/user/project",
+      "points": 100,
+      "sent_by": "developer",
       "published": "3 hours ago",
-      "comments": 32,
+      "comments": 25,
       "category": "show-hn",
       "intent": "show_hn",
-      "tags": ["RAG", "Vectorless"],
-      "confidence": 85,
-      "reason_brief": "Showcase of a new retrieval framework."
+      "tags": ["Project", "Open Source"],
+      "confidence": 90,
+      "reason_brief": "User showcasing their new project."
     }
   ]
 }
 ```
 
-## AI Classification
+**Classification Schema:**
+- **Categories:** `ai-ml`, `programming`, `security`, `devops`, `hardware`, `science`, `business`, `web`, `mobile`, `database`, `math`, `history`, `politics`, `ask-hn`, `show-hn`, `launch-hn`, `job`, `meta`, `other`
+- **Intents:** `news`, `discussion`, `tutorial`, `research`, `opinion`, `announcement`, `ask_hn`, `show_hn`, `launch_hn`, `job`
+- **Tags:** 1-6 relevant keywords
+- **Confidence:** 0-100 score
+- **Reason:** Brief explanation (≤160 chars)
 
-### Input to the model
+**Notes:**
+- Only classifies first 5 stories (optimization)
+- Uses cache to avoid re-scraping
+- Parallel execution (max 3 concurrent OpenAI requests)
 
-For each news item, the following fields are passed into the prompt:
+### `GET /health`
+Health check endpoint for monitoring.
 
+**Response:**
 ```json
 {
-  "index": 0,
-  "title": "Some HN story",
-  "url": "https://example.com",
-  "points": 100,
-  "comments": 25
+  "status": "healthy",
+  "cache": {
+    "pages_cached": 2,
+    "total_stories": 60,
+    "cached_page_numbers": [1, 2]
+  }
 }
 ```
 
-Only the **first 5 items** are classified (simplification to keep development fast).
+## 🏗️ Architecture
 
-### Model Configuration
+### Tech Stack
 
-- **Model:** Must use `gpt-4o-mini` (mandatory)
-- **Endpoint:** Must use OpenAI's **Responses API** → [docs](https://platform.openai.com/docs/api-reference/responses)
-- **Output Schema:**
-  - **category**:  Must be one of the following fixed categories: `ai-ml`, `programming`, `security`, `devops`, `hardware`, `science`, `business`, `web`, `mobile`, `database`, `math`, `history`, `politics`, `ask-hn`, `show-hn`, `launch-hn`, `job`, `meta`, `other`
-  - **intent**: Must be one of the following fixed intents: `news`, `discussion`, `tutorial`, `research`, `opinion`, `announcement`, `ask_hn`, `show_hn`, `launch_hn`, `job`
-  - **tags**: list of 1–6 strings
-  - **confidence**: integer 0–100
-  - **reason_brief**: short explanation (≤160 chars)
+- **Python 3.12+** - Modern Python with type hints
+- **FastAPI** - Async web framework with automatic OpenAPI docs
+- **httpx** - Async HTTP client for scraping
+- **BeautifulSoup4 + lxml** - HTML parsing
+- **OpenAI Responses API** - AI classification with structured outputs
+- **Pydantic v2** - Data validation and settings management
+- **Tenacity** - Retry logic for resilience
+- **Docker + Docker Compose** - Containerization
 
-## Running the API
+### Project Structure
 
-Assuming Docker Compose is set up and the app runs on port 3000:
-
-```bash
-docker compose up -d
 ```
-
-Check output:
-
-```bash
-curl -s localhost:3000 | jq
-curl -s localhost:3000/2 | jq | wc -l   # should be ~60
-curl -s localhost:3000/ai/classify/1 | jq
+.
+├── src/
 ```
-
----
-
-Feel free to contact us by email if you have any doubt or comment about this challenge. Once you're happy with your solution let us know and invite us to your repo which we kindly ask you to keep it private.
