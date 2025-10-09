@@ -8,9 +8,6 @@ services:
       - "3000:3000"
     env_file:
       - .env
-    restart: unless-stopped
-    environment:
-      - PYTHONUNBUFFERED=1
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
       interval: 30s

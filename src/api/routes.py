@@ -1,17 +1,16 @@
 """
-FastAPI routes for Hacker News API
+FastAPI routes for Hacker News API.
+
+Simple HTTP layer: validation, error handling, response formatting.
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Path
 from src.models import Story, ClassificationResponse
 from src.cache import CacheManager
-from src.scrapers import scrape_pages
 from src.ai import classify_stories
 from src.api.dependencies import get_cache_manager
-from src.exceptions import AIClassificationError
-import logging
-
-logger = logging.getLogger(__name__)
+from src.services import StoryService
+import httpx
 
 router = APIRouter()
 
@@ -50,156 +49,28 @@ async def get_default_stories(
 
 @router.get("/ai/classify/{pages}", response_model=ClassificationResponse)
 async def classify_hn_stories(
-    pages: int,
+    pages: int = Path(..., ge=1, le=10, description="Pages to classify (1-10)"),
     cache: CacheManager = Depends(get_cache_manager)
 ) -> ClassificationResponse:
-    """
-    Classify stories from N pages using OpenAI.
-    
-    Uses cache to avoid re-scraping. Only classifies the first 5 stories.
-    
-    Args:
-        pages: Number of pages to fetch and classify
-    
-    Returns:
-        ClassificationResponse with classified stories
-        
-    Raises:
-        HTTPException: If classification fails or pages parameter is invalid
-    """
-    # Validate input
-    if pages < 1:
-        raise HTTPException(
-            status_code=400,
-            detail="Pages parameter must be >= 1"
-        )
-    
-    if pages > 10:
-        raise HTTPException(
-            status_code=400,
-            detail="Pages parameter must be <= 10"
-        )
-    
+    """Classify stories from N pages using OpenAI (first 5 only)."""
     try:
-        # First, ensure we have the stories (use existing endpoint logic)
-        logger.info(f"Fetching {pages} page(s) for classification")
-        
-        # Check which pages are missing from cache
-        missing_pages = cache.get_missing_pages(pages)
-        
-        if missing_pages:
-            logger.info(f"Scraping missing pages: {missing_pages}")
-            
-            # Scrape missing pages
-            scraped_data = await scrape_pages(missing_pages)
-            
-            # Add to cache
-            for page_num, stories in scraped_data.items():
-                if stories:
-                    cache.add_page(page_num, stories)
-                else:
-                    logger.warning(f"No stories scraped for page {page_num}")
-        else:
-            logger.info(f"All pages 1-{pages} already in cache")
-        
-        # Get all stories from cache
-        stories = cache.get_stories_up_to(pages)
-        logger.info(f"Got {len(stories)} stories, classifying first 5 with OpenAI")
-        
-        # Classify stories with OpenAI
-        classification_response = await classify_stories(stories, max_stories=5)
-        
-        logger.info(f"Successfully classified {classification_response.total} stories")
-        return classification_response
-        
-    except AIClassificationError as e:
-        logger.error(f"AI classification error: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"AI classification failed: {str(e)}"
-        )
-    
-    except ValueError as e:
-        # Cache error
-        logger.error(f"Cache error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    
+        stories = await StoryService.fetch_and_cache_stories(pages, cache)
+        return await classify_stories(stories, max_stories=5)
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"HN scraping failed: {e}")
     except Exception as e:
-        # Unexpected error
-        logger.error(f"Error in classify endpoint: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to classify stories: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Classification failed: {e}")
 
 
 @router.get("/{pages}", response_model=list[Story])
 async def get_stories(
-    pages: int,
+    pages: int = Path(..., ge=1, le=10, description="Pages to fetch (1-10)"),
     cache: CacheManager = Depends(get_cache_manager)
 ) -> list[Story]:
-    """
-    Get stories from N pages of Hacker News.
-    
-    Uses incremental caching: only scrapes missing pages.
-    
-    Args:
-        pages: Number of pages to retrieve (1-indexed)
-               Example: 2 means pages 1 and 2 (60 stories)
-    
-    Returns:
-        List of stories (30 * pages stories)
-        
-    Raises:
-        HTTPException: If pages parameter is invalid or scraping fails
-    """
-    # Validate input
-    if pages < 1:
-        raise HTTPException(
-            status_code=400,
-            detail="Pages parameter must be >= 1"
-        )
-    
-    if pages > 10:  # Reasonable limit
-        raise HTTPException(
-            status_code=400,
-            detail="Pages parameter must be <= 10 (max 300 stories)"
-        )
-    
+    """Get stories from N pages. Uses incremental caching."""
     try:
-        # Check which pages are missing from cache
-        missing_pages = cache.get_missing_pages(pages)
-        
-        if missing_pages:
-            logger.info(f"Scraping missing pages: {missing_pages}")
-            
-            # Scrape missing pages
-            scraped_data = await scrape_pages(missing_pages)
-            
-            # Add to cache
-            for page_num, stories in scraped_data.items():
-                if stories:  # Only cache if scraping succeeded
-                    cache.add_page(page_num, stories)
-                else:
-                    logger.warning(f"No stories scraped for page {page_num}")
-        else:
-            logger.info(f"All pages 1-{pages} already in cache")
-        
-        # Retrieve all stories from cache
-        stories = cache.get_stories_up_to(pages)
-        
-        logger.info(f"Returning {len(stories)} stories from {pages} page(s)")
-        return stories
-        
-    except ValueError as e:
-        # Cache error (missing pages that should be there)
-        logger.error(f"Cache error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    
+        return await StoryService.fetch_and_cache_stories(pages, cache)
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"HN scraping failed: {e}")
     except Exception as e:
-        # Scraping or other unexpected error
-        logger.error(f"Error fetching stories: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to fetch stories: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))

@@ -39,5 +39,8 @@ build/
 dist/
 *.egg-info/
 
+# Añade al final del .gitignore:
+REFACTORING_SUMMARY.md
+.claude/
 ROADMAP.md
 .cursor/
