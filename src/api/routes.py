@@ -32,19 +32,22 @@ async def health_check():
     }
 
 
-@router.get("/", response_model=list[Story])
-async def get_default_stories(
+@router.get("/{pages}", response_model=list[Story])
+async def get_stories(
+    pages: int = Path(1, ge=1, le=10, description="Pages to fetch (1-10), defaults to 1 if omitted"),
     cache: CacheManager = Depends(get_cache_manager)
 ) -> list[Story]:
     """
-    Get stories from page 1 (default endpoint).
-    
-    Behaves the same as GET /1
-    
-    Returns:
-        List of 30 stories from page 1
+    Get stories from N pages. Uses incremental caching.
+
+    If 'pages' is not provided, defaults to 1 (same as the root endpoint).
     """
-    return await get_stories(1, cache)
+    try:
+        return await StoryService.fetch_and_cache_stories(pages, cache)
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"HN scraping failed: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/ai/classify/{pages}", response_model=ClassificationResponse)
@@ -60,17 +63,3 @@ async def classify_hn_stories(
         raise HTTPException(status_code=502, detail=f"HN scraping failed: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Classification failed: {e}")
-
-
-@router.get("/{pages}", response_model=list[Story])
-async def get_stories(
-    pages: int = Path(..., ge=1, le=10, description="Pages to fetch (1-10)"),
-    cache: CacheManager = Depends(get_cache_manager)
-) -> list[Story]:
-    """Get stories from N pages. Uses incremental caching."""
-    try:
-        return await StoryService.fetch_and_cache_stories(pages, cache)
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"HN scraping failed: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))

@@ -8,9 +8,7 @@ from src.models import Story
 
 class CacheManager:
     """
-    Simple story cache: dict[page_num -> list[Story]]
-
-    No complex logic, no exceptions, just basic get/set.
+    Simple cache: dict[page_num -> list[Story]]
     """
 
     def __init__(self):
