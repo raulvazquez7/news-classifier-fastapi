@@ -29,18 +29,7 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # In production, specify exact origins
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include routers
 app.include_router(routes.router)
-
 
 @app.on_event("startup")
 async def startup_event():
