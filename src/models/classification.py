@@ -1,5 +1,5 @@
 """
-Pydantic models for OpenAI classification
+Pydantic models for OpenAI classification.
 """
 
 from pydantic import BaseModel, Field
